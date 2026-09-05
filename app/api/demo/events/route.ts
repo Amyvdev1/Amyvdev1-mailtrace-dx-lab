@@ -42,9 +42,12 @@ export async function POST(request: Request): Promise<Response> {
     });
   }
 
-  const occurredAt = new Date().toISOString();
+  const repository = getMailTraceRepository();
+  const providerEventId = parsed.data.providerEventId ?? `demo_${randomUUID()}`;
+  const existingEvent = repository.findEventByProviderEventId(providerEventId);
+  const occurredAt = existingEvent?.occurredAt ?? new Date().toISOString();
   const event = {
-    providerEventId: parsed.data.providerEventId ?? `demo_${randomUUID()}`,
+    providerEventId,
     messageId: parsed.data.messageId,
     type: parsed.data.type,
     occurredAt,
@@ -66,7 +69,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = processWebhookEvent({ repository: getMailTraceRepository(), event, rawBody });
+    const result = processWebhookEvent({ repository, event, rawBody });
     return jsonOk({ requestId, fixture: { timestamp, signature }, result });
   } catch (error) {
     if (error instanceof MailTraceServiceError) {
