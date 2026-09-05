@@ -1,43 +1,24 @@
 # MailTrace DX Lab
 
-> **Developer-facing email lifecycle observability in Next.js + strict TypeScript.**
+> **Developer observability + webhook reliability + API debugging in Next.js and strict TypeScript.**
 
-MailTrace DX Lab is a self-directed engineering sample for debugging a simulated outbound message across **request IDs, message IDs, signed webhook events, retries, idempotency, event ordering, raw payloads, and deterministic SPF/DKIM/DMARC diagnostics**.
+[Source](https://github.com/Amyvdev1/Amyvdev1-mailtrace-dx-lab) · [Amy Villa on GitHub](https://github.com/Amyvdev1) · [Contact](mailto:amyv.dev@gmail.com)
 
-The product is intentionally narrow: a reviewer can create one trace, generate or send signed lifecycle events, inspect exactly what happened, replay an event, and see why a domain fixture is healthy or broken.
+## What it solves
 
-**Evidence boundary:** this lab **does not send real email**, **does not query live DNS**, does not use customer data, and is **not affiliated with Resend**. It demonstrates product/engineering decisions; it does not manufacture production credentials.
+MailTrace makes a simulated outbound-message lifecycle **inspectable** across request IDs, message IDs, signed webhook events, retries, idempotency, event ordering, raw payloads, and deterministic domain diagnostics.
 
-## Why this project exists
+## Why it exists
 
-Most webhook demos stop at “the endpoint returned 200.” MailTrace treats the debugging experience as the product:
+Most webhook demos stop at “the endpoint returned 200.” MailTrace treats the debugging experience as the product: identifiers stay visible, signed events can be verified and replayed, late arrivals do not silently corrupt current state, and failures explain the next action instead of returning an opaque error.
 
-- identifiers are visible instead of buried,
-- signed events are verified against the exact raw body,
-- stale timestamps are rejected inside a five-minute replay window,
-- provider event IDs are idempotent,
-- retries and arrival delay remain visible,
-- late events do not silently regress the current lifecycle status,
-- raw and normalized data can be inspected together,
-- failures include a concrete next action,
-- DNS behavior is deterministic and explicitly labeled as a fixture.
+**Evidence boundary:** this lab **does not send real email**, **does not query live DNS**, does not use customer data, and is **not affiliated with Resend**. It demonstrates product and engineering decisions; it does not manufacture production credentials.
 
-## Stack
+## Live demo
 
-- **Next.js 16** App Router
-- **React 19**
-- **TypeScript** with `strict`, `noUncheckedIndexedAccess`, `noUnusedLocals`, and `noUnusedParameters`
-- **Node route handlers**
-- **SQLite** via Node's built-in `node:sqlite` API for this local sample
-- **Zod** request validation
-- **Vitest + React Testing Library**
-- **Playwright** browser E2E
-- **GitHub Actions**
-- **pnpm**
+**Production deployment: pending.** The repository already contains a browser-level demo flow and Playwright E2E coverage. Until a stable public deployment is attached, reviewers can run the local demo path below without external API keys or live DNS dependencies.
 
-The dependency surface is intentionally small. The local sample uses the Node SQLite API to keep persistence inspectable without introducing a separate ORM. A production system would revisit storage, migrations, concurrency, backups, and runtime support based on deployment requirements.
-
-## System map
+## Architecture
 
 ```text
 Browser
@@ -71,7 +52,26 @@ SQLite
   └── delivery_events (provider_event_id UNIQUE)
 ```
 
-## Debugging flow
+### Stack
+
+**Next.js 16 · React 19 · strict TypeScript · Node route handlers · SQLite · Zod · Vitest/RTL · Playwright · GitHub Actions · pnpm**
+
+The dependency surface is intentionally small. Node's built-in `node:sqlite` keeps persistence inspectable for this local sample without adding an ORM.
+
+## Key engineering decisions
+
+| Decision | Why it is here |
+|---|---|
+| **HMAC-SHA256 over timestamp + exact raw body** | Demonstrates a realistic signed-webhook boundary and makes body mutation detectable. |
+| **Constant-time signature comparison** | Avoids a timing-sensitive equality check at the verification boundary. |
+| **Five-minute replay window** | Rejects stale signed requests while allowing small delivery-clock differences. |
+| **Unique `provider_event_id`** | Makes retries idempotent and prevents duplicate timeline inserts. |
+| **Monotonic lifecycle precedence** | A late-arriving lower-precedence event cannot silently regress the compact current status. |
+| **Full event timeline remains visible** | Compact status and debugging truth are intentionally different views of the same lifecycle. |
+| **SQLite** | Gives the sample real persistence and a visible uniqueness constraint without hiding behavior behind an ORM. |
+| **Deterministic SPF/DKIM/DMARC fixtures** | Keeps diagnostics reproducible and honestly separated from live DNS behavior. |
+
+## Reviewer flow
 
 ### 1. Create a trace
 
@@ -84,13 +84,13 @@ SQLite
 }
 ```
 
-The response exposes three different identifiers on purpose:
+The response exposes three identifiers on purpose:
 
 - `traceId` — product record
 - `requestId` — API/request correlation
 - `messageId` — lifecycle/webhook correlation
 
-### 2. Send a signed webhook
+### 2. Send a signed event
 
 `POST /api/webhooks/events`
 
@@ -107,56 +107,21 @@ Signature input:
 <timestamp>.<exact raw request body>
 ```
 
-The server uses constant-time comparison and rejects timestamps outside the five-minute replay window.
-
-Example body:
-
-```json
-{
-  "providerEventId": "evt_demo_001",
-  "messageId": "msg_...",
-  "type": "delivered",
-  "occurredAt": "2026-09-05T00:00:02.000Z",
-  "retryAttempt": 0,
-  "payload": {
-    "source": "local-fixture"
-  }
-}
-```
-
 ### 3. Inspect the timeline
 
-The trace detail page shows:
+The detail page shows lifecycle timestamp, receipt timestamp, arrival delay, retry attempt, signature state, provider event ID, raw payload, and an explicit out-of-order marker when receipt order disagrees with lifecycle order.
 
-- lifecycle timestamp,
-- receipt timestamp,
-- arrival delay,
-- retry attempt,
-- signature state,
-- provider event ID,
-- raw payload,
-- an explicit out-of-order marker when receipt order disagrees with lifecycle order.
+### 4. Replay the event
 
-The trace's compact current status uses monotonic precedence, while the full event timeline remains the debugging source of truth.
-
-### 4. Replay the same provider event
-
-The `provider_event_id` column is unique. Replaying the event returns an idempotent duplicate result and does not create a second timeline event.
+Reusing the same provider event ID for the same logical event returns an idempotent duplicate result and does not create a second timeline row.
 
 ### 5. Run a deterministic domain diagnostic
 
-The domain panel can reproduce:
+The fixture can reproduce healthy records, missing SPF, invalid DKIM selector/key data, and weak DMARC policy. Every result includes record, status, explanation, and next action and is labelled as **not a live DNS lookup**.
 
-- healthy records,
-- missing SPF,
-- invalid DKIM selector/key fixture,
-- weak DMARC policy.
+## Failure behavior
 
-Every result shows the record, status, explanation, and next action. The interface states clearly that this is **not a live DNS lookup**.
-
-## Error contract
-
-Errors use one predictable shape:
+Errors use one predictable contract:
 
 ```json
 {
@@ -169,45 +134,9 @@ Errors use one predictable shape:
 }
 ```
 
-Implemented error classes include invalid requests, invalid signatures, stale webhooks, missing traces, oversized payloads, disabled demo endpoints, and unexpected server failures.
+The sample handles invalid requests, invalid signatures, stale webhooks, missing traces, oversized payloads, disabled demo endpoints, and unexpected server failures. Reused provider IDs are accepted only when they represent the same logical event; conflicting reuse is rejected rather than silently deduplicated.
 
-## Security and failure boundaries
-
-The sample demonstrates:
-
-- HMAC-SHA256 verification,
-- constant-time signature comparison,
-- five-minute replay tolerance,
-- a 64 KiB webhook body limit,
-- Zod validation before business logic,
-- unique provider event IDs for idempotency,
-- raw payload rendering through React text output rather than HTML injection,
-- demo endpoint gating through an explicit environment variable,
-- secrets in environment configuration only.
-
-See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the compact review model.
-
-## Run locally
-
-Prerequisites: Node 22+ and pnpm 10.4.1.
-
-```bash
-cp .env.example .env.local
-pnpm install --frozen-lockfile
-pnpm dev
-```
-
-Then open `http://localhost:3000`.
-
-For the browser demo controls, explicitly set:
-
-```text
-MAILTRACE_ENABLE_DEMO_ENDPOINTS=true
-```
-
-Do not enable that route by default in a deployed environment.
-
-## Verification
+## Testing & CI
 
 ```bash
 pnpm test:architecture
@@ -220,8 +149,6 @@ pnpm verify:public
 pnpm test:e2e
 ```
 
-The tests are intentionally layered:
-
 | Layer | What it proves |
 |---|---|
 | Architecture checks | Required routes, strict compiler posture, evidence boundaries, accessible UI hooks |
@@ -229,39 +156,58 @@ The tests are intentionally layered:
 | Vitest unit/integration | Domain rules, persistence, service behavior, API contract |
 | Component tests | Debugging state and accessible raw-payload disclosure |
 | Playwright | Trace → signed event → duplicate replay → raw inspection → broken domain fixture |
-| CI | Repeats the full install/lint/typecheck/test/build/E2E path on pull requests |
+| GitHub Actions | Locked install, lint, typecheck, tests, production build, public-boundary checks, and browser E2E |
 
-## Code review path
+## Security / evidence boundaries
 
-If you have five minutes:
+The sample demonstrates:
 
-1. [`lib/signatures.ts`](lib/signatures.ts) — signature and replay resistance.
-2. [`lib/repository.ts`](lib/repository.ts) — SQLite schema + idempotent provider-event insert.
-3. [`lib/webhook-service.ts`](lib/webhook-service.ts) — event-to-trace behavior and typed failure.
+- HMAC-SHA256 verification
+- constant-time signature comparison
+- five-minute replay tolerance
+- 64 KiB webhook body limit
+- Zod validation before business logic
+- unique provider event IDs
+- React text rendering for raw payload inspection rather than HTML injection
+- demo endpoint gating through an explicit environment variable
+- secrets through environment configuration only
+
+See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the compact threat model.
+
+This repository intentionally does **not** claim external email delivery, live DNS resolution, real users, customer data, multi-user authentication, background queues, managed infrastructure, deliverability metrics, enterprise scale, or security certification.
+
+## 5-minute code review path
+
+1. [`lib/signatures.ts`](lib/signatures.ts) — signature verification and replay resistance.
+2. [`lib/repository.ts`](lib/repository.ts) — SQLite schema and idempotent provider-event insertion.
+3. [`lib/webhook-service.ts`](lib/webhook-service.ts) — event-to-trace behavior and typed failures.
 4. [`lib/timeline.ts`](lib/timeline.ts) — out-of-order arrival reasoning.
-5. [`app/api/webhooks/events/route.ts`](app/api/webhooks/events/route.ts) — raw body limit, verification, validation, error contract.
+5. [`app/api/webhooks/events/route.ts`](app/api/webhooks/events/route.ts) — body limit, verification, validation, and error contract.
 6. [`components/event-timeline.tsx`](components/event-timeline.tsx) — product-facing observability.
 7. [`e2e/trace-debugging.spec.ts`](e2e/trace-debugging.spec.ts) — end-to-end reviewer path.
 
 For a longer walkthrough, read [`docs/CODE_TOUR.md`](docs/CODE_TOUR.md).
 
-## Intentional non-goals
+## Run locally
 
-This repository does not claim:
+Prerequisites: Node 22+ and pnpm 10.4.1.
 
-- external email delivery,
-- live DNS resolution,
-- real users or customer data,
-- multi-user authentication,
-- background queues,
-- managed infrastructure,
-- external observability vendors,
-- deliverability metrics,
-- enterprise scale,
-- security certification.
+```bash
+cp .env.example .env.local
+pnpm install --frozen-lockfile
+pnpm dev
+```
 
-Those are production-design questions, not portfolio claims.
+Open `http://localhost:3000`.
+
+To expose the browser demo controls locally, set:
+
+```text
+MAILTRACE_ENABLE_DEMO_ENDPOINTS=true
+```
+
+Do not enable the demo route by default in a deployed environment.
 
 ---
 
-Built by **Amy Villa** as an inspectable Product Engineering / Developer Experience code sample.
+Built by **Amy Villa** as an inspectable Developer Observability / Developer Experience engineering sample.
