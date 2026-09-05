@@ -2,6 +2,11 @@ name: Bootstrap pnpm lockfile
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/restore-project-structure
+    paths:
+      - .github/workflows/bootstrap-lock.yml
 
 permissions:
   contents: write
