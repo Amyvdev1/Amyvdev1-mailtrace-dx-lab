@@ -1,0 +1,46 @@
+{
+  "name": "mailtrace-dx-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Developer-facing email lifecycle observability and webhook debugging lab built with Next.js, React, and strict TypeScript.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.4.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "verify:architecture": "node tests/architecture/foundation.test.mjs",
+    "verify": "pnpm test:architecture && pnpm test:core && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm verify:public",
+    "test:architecture": "node tests/architecture/foundation.test.mjs && node tests/architecture/api-boundary.test.mjs && node tests/architecture/developer-console.test.mjs",
+    "test:core": "rm -rf .verify-dist && tsc -p tsconfig.verify.json && node tests/runtime/core-domain.test.mjs && node tests/runtime/signatures.test.mjs && node tests/runtime/repository.test.mjs && node tests/runtime/webhook-service.test.mjs && node tests/runtime/timeline.test.mjs",
+    "verify:public": "node scripts/verify-public-boundaries.mjs"
+  },
+  "dependencies": {
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^24.3.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "eslint": "^9.35.0",
+    "eslint-config-next": "^16.0.0",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  },
+  "type": "module"
+}
