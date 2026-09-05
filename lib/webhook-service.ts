@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { normalizeDeliveryEvent } from "./event-normalization.js";
+import { normalizeDeliveryEvent } from "./event-normalization.ts";
 import type { MailTraceRepository } from "./repository.js";
-import { nextTraceStatus } from "./status-transitions.js";
+import { nextTraceStatus } from "./status-transitions.ts";
 import type {
   ApiErrorCode,
   DeliveryEvent,
