@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "outDir": ".verify-dist",
+    "rootDir": "lib",
+    "declaration": false
+  },
+  "include": [
+    "lib/types.ts",
+    "lib/status-transitions.ts",
+    "lib/domain-diagnostics.ts",
+    "lib/event-normalization.ts",
+    "lib/signatures.ts",
+    "tests/support/node-crypto.d.ts",
+    "lib/repository.ts",
+    "tests/support/node-sqlite.d.ts",
+    "tests/support/node-fs-path.d.ts",
+    "lib/webhook-service.ts",
+    "lib/timeline.ts"
+  ]
+}
