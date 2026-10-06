@@ -1,0 +1,44 @@
+name: Verify MailTrace DX Lab
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Architecture checks
+        run: pnpm test:architecture
+      - name: Dependency-free core behavior
+        run: pnpm test:core
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Unit, component, and integration tests
+        run: pnpm test
+      - name: Production build
+        env:
+          MAILTRACE_WEBHOOK_SECRET: ci-build-secret
+          MAILTRACE_DATABASE_PATH: ./.tmp/ci-build.sqlite
+          MAILTRACE_ENABLE_DEMO_ENDPOINTS: "false"
+        run: pnpm build
+      - name: Public evidence boundaries
+        run: pnpm verify:public
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: End-to-end developer flow
+        run: pnpm test:e2e
